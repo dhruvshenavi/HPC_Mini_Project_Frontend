@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useState,loadEnv } from "react";
 import "./App.css";
+
+const env = loadEnv(mode, process.cwd())
+
 
 function App() {
   const [file, setFile] = useState(null);
@@ -20,7 +23,7 @@ function App() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:8000/process", {
+      const res = await fetch(env.VITE_PIPELINE_GATEWAY_URL, {
         method: "POST",
         body: formData,
       });
