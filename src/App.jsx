@@ -1,14 +1,19 @@
-import { useState,loadEnv } from "react";
+import { useState } from "react";
 import "./App.css";
-
-const env = loadEnv(mode, process.cwd())
-
 
 function App() {
   const [file, setFile] = useState(null);
-  const [keyword, setKeyword] = useState("");   // 🔥 NEW
-  const [result, setResult] = useState(null);
+  const [keyword, setKeyword] = useState("");
+
+  const [parallelResult, setParallelResult] = useState(null);
+  const [serialResult, setSerialResult] = useState(null);
+
+  const [parallelTime, setParallelTime] = useState(null);
+  const [serialTime, setSerialTime] = useState(null);
+
   const [loading, setLoading] = useState(false);
+
+  const BASE_URL = import.meta.env.VITE_PIPELINE_GATEWAY_URL;
 
   const handleUpload = async () => {
     if (!file || !keyword) {
@@ -16,24 +21,49 @@ function App() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("keyword", keyword);   // 🔥 NEW
-
     setLoading(true);
 
+    // prepare form data
+    const formData1 = new FormData();
+    formData1.append("file", file);
+    formData1.append("keyword", keyword);
+
+    const formData2 = new FormData();
+    formData2.append("file", file);
+    formData2.append("keyword", keyword);
+
     try {
-      const res = await fetch(env.VITE_PIPELINE_GATEWAY_URL, {
+      // 🔥 PARALLEL API CALL
+      const startParallel = performance.now();
+
+      const resParallel = await fetch(`${BASE_URL}/process`, {
         method: "POST",
-        body: formData,
+        body: formData1,
       });
 
-      if (!res.ok) {
-        throw new Error("Server error");
-      }
+      const dataParallel = await resParallel.json();
 
-      const data = await res.json();
-      setResult(data);
+      const endParallel = performance.now();
+
+      // 🔥 SERIAL API CALL
+      const startSerial = performance.now();
+
+      const resSerial = await fetch(`${BASE_URL}/process_serial`, {
+        method: "POST",
+        body: formData2,
+      });
+
+      const dataSerial = await resSerial.json();
+
+      const endSerial = performance.now();
+
+      // store results
+      setParallelResult(dataParallel);
+      setSerialResult(dataSerial);
+
+      setParallelTime((endParallel - startParallel).toFixed(2));
+      setSerialTime((endSerial - startSerial).toFixed(2));
+
     } catch (err) {
       console.error(err);
       alert("Error connecting to backend");
@@ -44,7 +74,7 @@ function App() {
 
   return (
     <div className="container">
-      <h1>🔍 Parallel Search System</h1>
+      <h1>🔍 Parallel vs Serial Search</h1>
 
       {/* File Upload */}
       <input
@@ -54,10 +84,10 @@ function App() {
 
       <br /><br />
 
-      {/* 🔥 Keyword Input */}
+      {/* Keyword Input */}
       <input
         type="text"
-        placeholder="Enter keyword (e.g. ai)"
+        placeholder="Enter keyword (e.g. Dhruv)"
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
       />
@@ -65,20 +95,29 @@ function App() {
       <br /><br />
 
       <button onClick={handleUpload}>
-        {loading ? "Processing..." : "Search"}
+        {loading ? "Processing..." : "Run Comparison"}
       </button>
 
-      {result && (
+      {/* RESULTS */}
+      {parallelResult && serialResult && (
         <div className="result">
-          <h2>Keyword: {result.keyword}</h2>
-          <h3>Total Matches: {result.total_matches}</h3>
 
-          <h3>Sample Output:</h3>
-          <ul>
-            {result.sample_output.map((line, index) => (
-              <li key={index}>{line}</li>
-            ))}
-          </ul>
+          <h2>Keyword: {keyword}</h2>
+
+          <h3>⚡ Parallel Result</h3>
+          <p>Total Matches: {parallelResult.total_matches}</p>
+          <p>Time Taken: {parallelTime} ms</p>
+
+          <h3>🐢 Serial Result</h3>
+          <p>Total Matches: {serialResult.total_matches}</p>
+          <p>Time Taken: {serialTime} ms</p>
+
+          <h3>📊 Performance Difference</h3>
+          <p>
+            Speed Improvement:{" "}
+            {(serialTime - parallelTime).toFixed(2)} ms faster
+          </p>
+
         </div>
       )}
     </div>
